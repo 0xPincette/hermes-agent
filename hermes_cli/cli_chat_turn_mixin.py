@@ -338,11 +338,15 @@ class CLIChatTurnMixin:
         from tools.tts_streaming import SPEECH_INTERRUPTED_NOTE, take_speech_interrupted
         if take_speech_interrupted():
             agent_message = _prepend_note_to_message(agent_message, SPEECH_INTERRUPTED_NOTE)
+        from hermes_cli.phone_mode import augment_phone_message
+        _phone_augmented = augment_phone_message(agent_message, bool(getattr(self, "_phone_mode", False)))
+        _phone_changed = _phone_augmented != agent_message
+        agent_message = _phone_augmented
         _moa_cfg = getattr(self, "_pending_moa_config", None)
         self._pending_moa_config = None
         # Notes and voice prefix are API-local: the staged input stays the durable transcript
         # value so a close-path marker follows the same dict instead of a second user row.
-        _persist_clean_user_message = message if (turn.voice_prefix or agent_message != message) else None
+        _persist_clean_user_message = message if (turn.voice_prefix or _phone_changed or agent_message != message) else None
         _one_turn_model_restore = getattr(self, "_pending_one_turn_model_restore", None)
         self._pending_one_turn_model_restore = None
         try:

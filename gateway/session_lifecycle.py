@@ -6,6 +6,7 @@ import logging
 import os
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
@@ -16,6 +17,14 @@ if TYPE_CHECKING:
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("gateway.session")
+
+
+@dataclass(frozen=True)
+class SessionMetadataUpdateResult:
+    outcome: str
+    previous_value: object = None
+    effective_value: object = None
+    error: Optional[BaseException] = None
 
 
 def _now() -> datetime:
@@ -102,6 +111,37 @@ class SessionLifecycleMixin:
                 return False
             self._save()
             return True
+
+    def set_session_metadata_if_idle(
+        self, session_key: str, key: str, value, *, default=None
+    ) -> SessionMetadataUpdateResult:
+        """Persist metadata atomically when no turn owns the session.
+
+        The candidate row is written while the lifecycle lock is held and is published to the live
+        entry only after persistence succeeds. Turn acquisition uses the same lock, making this
+        linearizable with ``mark_turn_active``.
+        """
+        with self._lock:
+            entry = self._entry_locked(session_key)
+            if entry is None:
+                return SessionMetadataUpdateResult("missing", default, default)
+            previous = entry.metadata.get(key, default)
+            if entry.active_turn_token:
+                return SessionMetadataUpdateResult("active", previous, previous)
+            if previous == value:
+                return SessionMetadataUpdateResult("unchanged", previous, previous)
+
+            candidate = entry.to_dict()
+            candidate_metadata = dict(candidate.get("metadata") or {})
+            candidate_metadata[key] = value
+            candidate["metadata"] = candidate_metadata
+            try:
+                self._save_entry(session_key, entry_data=candidate, lock_held=True)
+            except Exception as exc:
+                logger.warning("gateway.session: metadata save failed for %r: %s", session_key, exc)
+                return SessionMetadataUpdateResult("persistence_error", previous, previous, exc)
+            entry.metadata = candidate_metadata
+            return SessionMetadataUpdateResult("updated", previous, value)
 
     def _update_all_entries_locked(self, mutate) -> int:
         """Apply ``mutate(entry) -> bool`` to every entry under ``_lock``; save once if any

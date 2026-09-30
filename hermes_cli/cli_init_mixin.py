@@ -313,6 +313,13 @@ class CLIInitMixin:
         self._pending_title: Optional[str] = None
         self._resumed = bool(resume)
         self.session_id = resume or new_session_id(self.session_start)
+        self._phone_mode = False
+        if self._session_db is not None:
+            try:
+                self._phone_mode = bool(self._session_db.get_session_model_config_value(
+                    self.session_id, "phone_mode", False))
+            except Exception:
+                logger.debug("failed to load phone mode", exc_info=True)
         getattr(self, "_write_terminal_breadcrumb", lambda: None)()
 
         self._history_file = _hermes_home / ".hermes_history"

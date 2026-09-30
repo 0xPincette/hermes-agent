@@ -657,6 +657,53 @@ class GatewaySlashCommandsMixin(
         platform_config.home_channel = home
         return t("gateway.set_home.success", name=chat_name, chat_id=chat_id)
 
+    async def _handle_phone_command(self, event: MessageEvent) -> str:
+        """Toggle per-conversation phone replies; the mode is metadata, not prompt state."""
+        from hermes_cli.phone_mode import format_phone_status, parse_phone_command, PHONE_MODE_METADATA_KEY
+        action, error = parse_phone_command(
+            "/phone " + (event.get_command_args() or "").strip())
+        if error:
+            return error
+        current = False
+        try:
+            entry = await self.async_session_store.get_or_create_session(event.source)
+            current = bool(entry.metadata.get(PHONE_MODE_METADATA_KEY, False))
+            if action == "status":
+                return format_phone_status(current)
+            enabled = action == "on"
+            try:
+                # Fast-path the gateway's process-local turn guard; the store operation below is the
+                # authoritative final check under the same lifecycle lock as durable turn markers.
+                session_key = self._session_key_for_source(event.source)
+                if self._is_session_running(session_key):
+                    return (
+                        "Phone mode change failed: an agent turn is active; try again after it finishes.\n"
+                        + format_phone_status(current)
+                    )
+            except Exception:
+                logger.exception("failed to determine active turn for phone mode")
+                return (
+                    "Phone mode change failed: could not determine whether an agent turn is active.\n"
+                    + format_phone_status(current)
+                )
+            try:
+                result = await self.async_session_store.set_session_metadata_if_idle(
+                    entry.session_key, PHONE_MODE_METADATA_KEY, enabled, default=False)
+            except Exception:
+                logger.exception("failed to persist phone mode")
+                return "Phone mode could not be saved. Try again.\n" + format_phone_status(current)
+            if result.outcome == "active":
+                return (
+                    "Phone mode change failed: an agent turn is active; try again after it finishes.\n"
+                    + format_phone_status(bool(result.effective_value))
+                )
+            if result.outcome in {"persistence_error", "missing"}:
+                return "Phone mode could not be saved. Try again.\n" + format_phone_status(bool(result.effective_value))
+            return format_phone_status(bool(result.effective_value))
+        except Exception:
+            logger.exception("failed to persist phone mode")
+            return "Phone mode could not be saved. Try again.\n" + format_phone_status(current)
+
     async def _handle_voice_command(self, event: MessageEvent) -> str:
         """Handle /voice [on|off|tts|channel|leave|status] command."""
         args = event.get_command_args().strip().lower()

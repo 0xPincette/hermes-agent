@@ -1645,6 +1645,7 @@ class TurnRunner:
             _last_transcript_timestamp, _prepare_resume_pending_message, build_resume_recovery_note,
         )
         ctx = self._ctx
+        phone_original_message = ctx.message
         persist_override: Optional[Any] = ctx.persist_user_message
         self._prepend_pending_note("_pending_model_notes")
         # Auto-continue: history ending with a tool result means the previous turn was cut off
@@ -1685,6 +1686,11 @@ class TurnRunner:
         # user turn. Restricted to resume_pending sessions so caption-less image turns are untouched.
         if isinstance(ctx.message, str) and not ctx.message.strip() and resume_pending:
             ctx.message = build_resume_recovery_note(resume_reason, "", interactive=self._resume_note_interactive())
+        if entry is not None and bool(getattr(entry, "metadata", {}).get("phone_mode", False)):
+            from hermes_cli.phone_mode import augment_phone_message
+            if persist_override is None:
+                persist_override = phone_original_message
+            ctx.message = augment_phone_message(ctx.message, enabled=True)
         return persist_override, ctx.persist_user_timestamp
 
     def _native_image_run_message(self):

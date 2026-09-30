@@ -532,6 +532,7 @@ class CLISessionMixin:
         self.conversation_history = []
         self._pending_title = None
         self._resumed = False
+        self._phone_mode = False
         # An explicit -m/--model was for the previous session only.
         self._explicit_model_override = False
         # Session-scoped overrides (/model --session, /fast, one-turn restores) don't carry over.

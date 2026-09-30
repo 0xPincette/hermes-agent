@@ -11,6 +11,7 @@ import atexit
 import importlib
 import io
 import json
+import logging
 import os
 import shlex
 import subprocess
@@ -33,6 +34,8 @@ from agent.i18n import t
 from agent.message_metadata import message_identity
 from agent.turn_context import extract_api_content_sidecar
 from hermes_cli.cli_agent_setup_mixin import _retire_agent
+
+logger = logging.getLogger(__name__)
 from hermes_cli.browser_connect import (
     DEFAULT_BROWSER_CDP_URL, discover_local_cdp_url, find_free_debug_port, is_browser_debug_ready,
     launch_chrome_debug, local_port_in_use, manual_chrome_debug_command)
@@ -2526,6 +2529,42 @@ class CLICommandsMixin:
         else:
             _cp(f"  {_t('toggle.save_failed', setting=failed)}")
         return new_state
+
+    def _handle_phone_command(self, cmd_original: str) -> None:
+        """Toggle or inspect per-conversation phone mode without changing the system prompt."""
+        from hermes_cli.phone_mode import format_phone_status, parse_phone_command, PHONE_MODE_METADATA_KEY
+        action, error = parse_phone_command(cmd_original)
+        if error:
+            self._console_print(error)
+            return
+        current = bool(getattr(self, "_phone_mode", False))
+        if action == "status":
+            self._console_print(format_phone_status(current))
+            return
+        if getattr(self, "_agent_running", False) or getattr(self, "_interactive_turn", False):
+            # Slash dispatch and the turn loop share the UI thread. These existing turn-boundary
+            # flags keep a toggle from changing the value the agent thread reads for this turn.
+            self._console_print(
+                "Phone mode change failed: an agent turn is active; try again after it finishes.\n"
+                + format_phone_status(current))
+            return
+        enabled = action == "on"
+        try:
+            session_db = getattr(self, "_session_db", None)
+            if session_db is None:
+                raise RuntimeError("SessionDB unavailable")
+            if session_db.get_session(self.session_id) is None:
+                session_db.create_session(
+                    session_id=self.session_id, source="cli", model=getattr(self, "model", None))
+            session_db.patch_session_model_config(self.session_id, {PHONE_MODE_METADATA_KEY: enabled})
+        except Exception as exc:
+            logger.debug("failed to persist phone mode", exc_info=True)
+            self._console_print(
+                f"Phone mode change failed: could not save the setting ({exc}).\n"
+                + format_phone_status(current))
+            return
+        self._phone_mode = enabled
+        self._console_print(format_phone_status(enabled))
 
     def _handle_footer_command(self, cmd_original: str) -> None:
         """Toggle or inspect ``display.runtime_footer.enabled`` (``/footer [on|off|status]``)."""
