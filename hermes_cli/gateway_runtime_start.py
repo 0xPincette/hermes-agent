@@ -9,6 +9,7 @@ import sys
 from hermes_cli._subprocess_compat import windows_detach_popen_kwargs, _WINDOWS_GATEWAY_BREAKAWAY_ENV
 from hermes_cli.gateway_launchd_runtime import GatewayJob, start_gateway_job
 from hermes_cli.gateway_runtime_service import RuntimeStartError, remaining
+from hermes_cli._startup_fast import project_root_str
 
 
 # One launch's policy and pins, never the shared daemon's: hook consent would become daemon-lifetime
@@ -52,7 +53,7 @@ def spawn_unmanaged_gateway(profile_home: Path, *, deadline: float, idle_exit: b
     needed (a named profile under a multiplexer), or it exits on the run-side guard.
     """
     home = profile_home.resolve()
-    root = Path(__file__).resolve().parent.parent
+    root = Path(project_root_str())
     # A root home is only pinned by an explicit selector: without one the child's
     # _apply_profile_override follows the sticky active_profile and boots the wrong
     # profile's daemon. A <root>/profiles/<name> home is already trusted as-is.
