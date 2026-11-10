@@ -2154,6 +2154,9 @@ export interface ProfilesCreateParams {
   provider?: string | null
   share_auth?: boolean | string | null
   mirror_credentials?: boolean | string | null
+  clone_config?: boolean | string | null
+  sync_imports?: boolean | string | null
+  report?: boolean | string | null
 }
 export interface ProfilesCreateResult {
   ok?: boolean
@@ -2163,6 +2166,7 @@ export interface ProfilesCreateResult {
   model_set?: boolean
   mirrored: ProfileMirrored
   warnings?: string[]
+  receipt?: ProfileCreateReceipt | null
 }
 /** What was copied from the launch profile; ``auth`` is ``"shared"`` when the new profile has no auth.json of its own and reads the default root's. */
 export interface ProfileMirrored {
@@ -2170,6 +2174,23 @@ export interface ProfileMirrored {
   auth?: boolean | 'shared'
   model_inherited?: boolean
   voice?: boolean
+}
+/** ``hermes_cli.profile_provision_gateway.receipt``: read where the profile was made. */
+export interface ProfileCreateReceipt {
+  path: string
+  display_path?: string
+  launch_label?: string
+  source_label?: string
+  skills_seeded?: Record<string, unknown> | null
+  alias_path?: string | null
+  alias_collision?: string | null
+  mirrored: ProfileMirrored
+  warnings?: string[]
+  cloned_plugins?: string[]
+  memory_provider?: string | null
+  channels_left_behind?: string[]
+  shared_channels?: string[]
+  served_now?: boolean | null
 }
 export interface ProfileNameParams {
   profile?: string | null
