@@ -89,8 +89,8 @@ def approval_refusal(session_key: str, actor_id: Any, *, admin_ids: Iterable[str
                                   request_id=request_id, extra=extra)[1]
 
 
-def _authority_refusal(authority: Optional[dict], actor_id: Any, admin_ids: Iterable[str], extra: Any) -> Optional[str]:
-    if not authority or may_answer(authority, actor_id, admin_ids, extra):
+def _authority_refusal(authority: Any, actor_id: Any, admin_ids: Iterable[str], extra: Any) -> Optional[str]:
+    if not isinstance(authority, dict) or may_answer(authority, actor_id, admin_ids, extra):
         return None
     return str(authority.get("requester_name") or authority.get("requester_id") or _NO_REQUESTER)
 
@@ -137,12 +137,6 @@ def opener_authority(event: Any) -> Optional[dict]:
     return {"requester_id": str(actor),
             "requester_name": str(getattr(event, "user_name", None) or getattr(source, "user_name", None) or actor),
             "chat_type": str(getattr(source, "chat_type", "") or ""), "approvers": []}
-
-
-def _authority_refusal(authority: Any, actor_id: Any, admin_ids: Iterable[str], extra: Any) -> Optional[str]:
-    if not isinstance(authority, dict) or may_answer(authority, actor_id, admin_ids, extra):
-        return None
-    return str(authority.get("requester_name") or authority.get("requester_id") or _NO_REQUESTER)
 
 
 def picker_refusal(on_selected: Any, actor_id: Any, *, extra: Any = None) -> Optional[str]:
