@@ -3327,8 +3327,8 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         if await asyncio.to_thread(db.get_session, fork_id):
             return _error_response(f"Session already exists: {fork_id}", 409, code="session_exists")
 
-        # CLI /branch semantics: create the child, then end the original as branched (child first, so
-        # a failed create never leaves the source ended with no fork, #11030).
+        # REST fork semantics: create an independent live child while leaving the source live.  Creating
+        # the child first also ensures a failed create never leaves the source changed (#11030).
         # ``_branched_from`` is the durable branch marker (same as CLI /branch): with the child created
         # first, the timestamp fallback in _BRANCH_CHILD_SQL (child.started_at >= parent.ended_at) no
         # longer holds, and an unmarked child would vanish from default session listings.
@@ -3336,7 +3336,6 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             db.create_session, fork_id, "api_server", model=source.get("model"),
             system_prompt=source.get("system_prompt"), parent_session_id=source_id,
             model_config={"_branched_from": source_id})
-        await asyncio.to_thread(db.end_session, source_id, "branched")
         messages = await asyncio.to_thread(db.get_messages, source_id)
         await asyncio.to_thread(db.replace_messages, fork_id, messages)
         title = body.get("title")

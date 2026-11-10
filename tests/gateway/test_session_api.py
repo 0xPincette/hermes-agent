@@ -250,6 +250,29 @@ async def test_fork_session_writes_branched_from_marker(adapter, session_db):
         cfg = json.loads(cfg)
     assert cfg["_branched_from"] == source_id
 
+
+@pytest.mark.asyncio
+async def test_fork_session_keeps_parent_and_child_live_and_writable(adapter, session_db):
+    """REST forking copies a session without ending either side of the fork."""
+    source_id = session_db.create_session("live-fork-source", "api_server")
+
+    app = _create_session_app(adapter)
+    async with TestClient(TestServer(app)) as cli:
+        resp = await cli.post(
+            f"/api/sessions/{source_id}/fork", json={"id": "live-fork-child"}
+        )
+        assert resp.status == 201
+
+    parent = session_db.get_session(source_id)
+    child = session_db.get_session("live-fork-child")
+    assert parent["end_reason"] is None
+    assert child["end_reason"] is None
+
+    assert session_db.set_session_title(source_id, "parent remains live")
+    assert session_db.set_session_title("live-fork-child", "child is live")
+    assert session_db.get_session(source_id)["title"] == "parent remains live"
+    assert session_db.get_session("live-fork-child")["title"] == "child is live"
+
 @pytest.mark.asyncio
 async def test_run_agent_binds_api_session_context_for_tool_env(adapter, monkeypatch):
     """API-server request sessions should reach tools and terminal subprocess env."""
