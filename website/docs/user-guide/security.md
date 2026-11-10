@@ -310,6 +310,8 @@ When anyone else clicks a button, adds a reaction, or sends `/approve`, `/deny` 
 
 The same rule covers the other prompts a member can answer for someone else: a slash-command confirmation (`/reload-mcp`'s Approve Once / Always / Cancel) and the agent's clarify question (a choice button, "Other", or a typed answer). Another member's tap gets the same note and the prompt stays pending; another member's typed message is handled as their own message, never as the answer.
 
+Picker cards (`/model`, `/reasoning`, `/fast` and the usage-limit switch offer) and the `/update` Yes/No prompt always belong to the member who opened them, whatever `approvers` says: only that member and the chat scope's admins can tap them or, for `/update`, answer by typing. Anyone else gets the same private note and the card stays open; their typed text is an ordinary message. A member refused an admin-only command therefore cannot apply an admin's open card instead.
+
 The setting is read when the approval is raised, so with multiplexed profiles each profile's own `config.yaml` decides. Host surfaces (CLI, TUI, Desktop, the API server) answer as the host and are not affected. Matrix keeps its own stricter `MATRIX_APPROVAL_REQUIRE_SENDER` (default on). QQBot already accepts clicks only from the session's own user.
 
 ### Permanent Allowlist
