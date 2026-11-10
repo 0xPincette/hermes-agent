@@ -90,7 +90,8 @@ def approval_refusal(session_key: str, actor_id: Any, *, admin_ids: Iterable[str
 
 
 def _authority_refusal(authority: Any, actor_id: Any, admin_ids: Iterable[str], extra: Any) -> Optional[str]:
-    if not isinstance(authority, dict) or may_answer(authority, actor_id, admin_ids, extra):
+    # An empty authority ({}) records no restriction: anyone admitted answers, as on main.
+    if not authority or not isinstance(authority, dict) or may_answer(authority, actor_id, admin_ids, extra):
         return None
     return str(authority.get("requester_name") or authority.get("requester_id") or _NO_REQUESTER)
 
